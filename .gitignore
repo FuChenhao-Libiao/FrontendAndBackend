@@ -1,0 +1,7 @@
+
+FaceRecognitionAttendance/backend/.idea
+FaceRecognitionAttendance/backend/__pycache__
+FaceRecognitionAttendance/backend/data
+*.bat
+BookmarkCollectionManager/backend/.idea
+BookmarkCollectionManager/backend/out

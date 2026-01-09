@@ -1,0 +1,839 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>人脸签到考勤系统</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        /* 导航栏 */
+        .navbar {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 15px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .navbar .logo {
+            font-size: 24px;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .navbar .logo span {
+            margin-right: 10px;
+        }
+
+        .navbar .nav-links {
+            display: flex;
+            gap: 20px;
+        }
+
+        .navbar .nav-links a {
+            text-decoration: none;
+            color: #666;
+            padding: 8px 16px;
+            border-radius: 6px;
+            transition: all 0.3s;
+        }
+
+        .navbar .nav-links a:hover,
+        .navbar .nav-links a.active {
+            background: #667eea;
+            color: white;
+        }
+
+        /* 主容器 */
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 30px;
+        }
+
+        /* 签到区域 */
+        .attendance-section {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-top: 20px;
+        }
+
+        @media (max-width: 900px) {
+            .attendance-section {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* 摄像头区域 */
+        .camera-card {
+            background: white;
+            border-radius: 16px;
+            padding: 25px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+        }
+
+        .camera-card h2 {
+            color: #333;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .camera-container {
+            position: relative;
+            width: 100%;
+            aspect-ratio: 4/3;
+            background: #1a1a2e;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        #video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transform: scaleX(-1);
+        }
+
+        #canvas {
+            display: none;
+        }
+
+        .camera-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            pointer-events: none;
+        }
+
+        .face-guide {
+            width: 200px;
+            height: 260px;
+            border: 3px dashed rgba(255, 255, 255, 0.5);
+            border-radius: 50%;
+        }
+
+        .camera-status {
+            position: absolute;
+            top: 15px;
+            left: 15px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(0, 0, 0, 0.6);
+            padding: 8px 15px;
+            border-radius: 20px;
+            color: white;
+            font-size: 14px;
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #4caf50;
+            animation: pulse 1.5s infinite;
+        }
+
+        .status-dot.error {
+            background: #f44336;
+            animation: none;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        /* 按钮组 */
+        .button-group {
+            display: flex;
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 15px 30px;
+            border: none;
+            border-radius: 10px;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .btn-checkin {
+            background: linear-gradient(135deg, #4caf50, #45a049);
+            color: white;
+        }
+
+        .btn-checkin:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(76, 175, 80, 0.4);
+        }
+
+        .btn-checkout {
+            background: linear-gradient(135deg, #ff9800, #f57c00);
+            color: white;
+        }
+
+        .btn-checkout:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(255, 152, 0, 0.4);
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+
+        /* 识别结果 */
+        .result-card {
+            background: white;
+            border-radius: 16px;
+            padding: 25px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+        }
+
+        .result-card h2 {
+            color: #333;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .result-display {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 30px;
+            text-align: center;
+            min-height: 200px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .result-display.success {
+            background: linear-gradient(135deg, #e8f5e9, #c8e6c9);
+        }
+
+        .result-display.error {
+            background: linear-gradient(135deg, #ffebee, #ffcdd2);
+        }
+
+        .result-icon {
+            font-size: 60px;
+            margin-bottom: 15px;
+        }
+
+        .result-name {
+            font-size: 28px;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .result-info {
+            color: #666;
+            font-size: 16px;
+            margin-bottom: 5px;
+        }
+
+        .result-time {
+            font-size: 24px;
+            color: #667eea;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+
+        .result-status {
+            display: inline-block;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 14px;
+            margin-top: 10px;
+        }
+
+        .result-status.normal {
+            background: #4caf50;
+            color: white;
+        }
+
+        .result-status.late {
+            background: #ff9800;
+            color: white;
+        }
+
+        .result-status.early {
+            background: #2196f3;
+            color: white;
+        }
+
+        /* 状态标签 */
+        .status-tag {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 12px;
+            margin-left: 5px;
+            vertical-align: middle;
+        }
+        .status-tag.late {
+            background: #ff9800;
+            color: white;
+        }
+        .status-tag.early {
+            background: #2196f3;
+            color: white;
+        }
+
+        /* 今日记录 */
+        .today-records {
+            background: white;
+            border-radius: 16px;
+            padding: 25px;
+            margin-top: 30px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+        }
+
+        .today-records h2 {
+            color: #333;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .today-stats {
+            display: flex;
+            gap: 10px;
+        }
+
+        .stat-badge {
+            background: #e3f2fd;
+            color: #1976d2;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 14px;
+        }
+
+        .records-list {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .record-item {
+            display: flex;
+            align-items: center;
+            padding: 12px 15px;
+            border-radius: 10px;
+            margin-bottom: 10px;
+            background: #f8f9fa;
+            transition: all 0.3s;
+        }
+
+        .record-item:hover {
+            background: #e3f2fd;
+        }
+
+        .record-avatar {
+            width: 45px;
+            height: 45px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 20px;
+            margin-right: 15px;
+        }
+
+        .record-info {
+            flex: 1;
+        }
+
+        .record-name {
+            font-weight: bold;
+            color: #333;
+        }
+
+        .record-dept {
+            font-size: 13px;
+            color: #999;
+        }
+
+        .record-time {
+            text-align: right;
+        }
+
+        .record-time .time {
+            font-size: 18px;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .record-time .action {
+            font-size: 13px;
+            color: #4caf50;
+        }
+
+        .record-time .action.checkout {
+            color: #ff9800;
+        }
+
+        .empty-records {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+        }
+
+        .empty-records .icon {
+            font-size: 50px;
+            margin-bottom: 10px;
+        }
+
+        /* 加载动画 */
+        .loading {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+        }
+
+        .loading.show {
+            display: flex;
+        }
+
+        .spinner {
+            width: 60px;
+            height: 60px;
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .loading-text {
+            color: white;
+            margin-top: 20px;
+            font-size: 18px;
+        }
+
+        /* Toast 提示 */
+        .toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 15px 25px;
+            border-radius: 10px;
+            color: white;
+            font-weight: bold;
+            z-index: 1001;
+            transform: translateX(400px);
+            transition: transform 0.3s;
+        }
+
+        .toast.show {
+            transform: translateX(0);
+        }
+
+        .toast.success {
+            background: #4caf50;
+        }
+
+        .toast.error {
+            background: #f44336;
+        }
+
+        .toast.warning {
+            background: #ff9800;
+        }
+    </style>
+</head>
+<body>
+    <!-- 导航栏 -->
+    <nav class="navbar">
+        <div class="logo">
+            <span>🎭</span>人脸签到考勤系统
+        </div>
+        <div class="nav-links">
+            <a href="index.html" class="active">📷 签到打卡</a>
+            <a href="register.html">👤 人脸注册</a>
+            <a href="records.html">📋 考勤记录</a>
+            <a href="admin.html">⚙️ 管理后台</a>
+        </div>
+    </nav>
+
+    <!-- 主容器 -->
+    <div class="container">
+        <!-- 签到区域 -->
+        <div class="attendance-section">
+            <!-- 摄像头区域 -->
+            <div class="camera-card">
+                <h2>📷 实时人脸识别</h2>
+                <div class="camera-container">
+                    <video id="video" autoplay playsinline></video>
+                    <canvas id="canvas"></canvas>
+                    <div class="camera-overlay">
+                        <div class="face-guide"></div>
+                    </div>
+                    <div class="camera-status">
+                        <div class="status-dot" id="statusDot"></div>
+                        <span id="statusText">摄像头就绪</span>
+                    </div>
+                </div>
+                <div class="button-group">
+                    <button class="btn btn-checkin" id="btnCheckIn" onclick="handleCheckIn()">
+                        🟢 签到
+                    </button>
+                    <button class="btn btn-checkout" id="btnCheckOut" onclick="handleCheckOut()">
+                        🔴 签退
+                    </button>
+                </div>
+            </div>
+
+            <!-- 识别结果 -->
+            <div class="result-card">
+                <h2>✨ 识别结果</h2>
+                <div class="result-display" id="resultDisplay">
+                    <div class="result-icon">👋</div>
+                    <div class="result-name">欢迎使用</div>
+                    <div class="result-info">请点击"签到"或"签退"按钮进行打卡</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 今日记录 -->
+        <div class="today-records">
+            <h2>
+                <span>📋 今日签到记录</span>
+                <div class="today-stats">
+                    <span class="stat-badge" id="statCheckedIn">已签到: 0</span>
+                    <span class="stat-badge" id="statCheckedOut">已签退: 0</span>
+                </div>
+            </h2>
+            <div class="records-list" id="recordsList">
+                <div class="empty-records">
+                    <div class="icon">📭</div>
+                    <div>暂无签到记录</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 加载动画 -->
+    <div class="loading" id="loading">
+        <div class="spinner"></div>
+        <div class="loading-text" id="loadingText">正在识别...</div>
+    </div>
+
+    <!-- Toast 提示 -->
+    <div class="toast" id="toast"></div>
+
+    <script src="js/api.js"></script>
+    <script>
+        // 全局变量
+        let video = null;
+        let canvas = null;
+        let ctx = null;
+        let stream = null;
+
+        // 页面加载
+        document.addEventListener('DOMContentLoaded', () => {
+            initCamera();
+            loadTodayRecords();
+        });
+
+        // 初始化摄像头
+        async function initCamera() {
+            video = document.getElementById('video');
+            canvas = document.getElementById('canvas');
+            ctx = canvas.getContext('2d');
+
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        width: { ideal: 640 },
+                        height: { ideal: 480 },
+                        facingMode: 'user'
+                    }
+                });
+                video.srcObject = stream;
+                updateCameraStatus(true, '摄像头就绪');
+            } catch (error) {
+                console.error('摄像头初始化失败:', error);
+                updateCameraStatus(false, '摄像头不可用');
+                showToast('无法访问摄像头，请检查权限设置', 'error');
+            }
+        }
+
+        // 更新摄像头状态
+        function updateCameraStatus(isOk, text) {
+            const dot = document.getElementById('statusDot');
+            const statusText = document.getElementById('statusText');
+            
+            dot.className = isOk ? 'status-dot' : 'status-dot error';
+            statusText.textContent = text;
+        }
+
+        // 拍照获取图片
+        function captureImage() {
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            ctx.drawImage(video, 0, 0);
+            return canvas.toDataURL('image/jpeg', 0.8);
+        }
+
+        // 签到
+        async function handleCheckIn() {
+            if (!stream) {
+                showToast('摄像头未就绪', 'error');
+                return;
+            }
+
+            const image = captureImage();
+            showLoading('正在识别...');
+
+            try {
+                const response = await api.checkIn(image);
+                hideLoading();
+
+                if (response.success) {
+                    showResult({
+                        success: true,
+                        icon: '✅',
+                        name: response.data.name,
+                        department: response.data.department,
+                        time: formatTime(response.data.checkInTime),
+                        status: response.data.status,
+                        statusClass: response.data.status === '正常' ? 'normal' : 'late',
+                        message: response.data.status === '迟到' ? 
+                            `迟到 ${response.data.lateMinutes} 分钟` : '签到成功'
+                    });
+                    showToast(`${response.data.name} 签到成功！`, 'success');
+                    loadTodayRecords();
+                } else {
+                    showResult({
+                        success: false,
+                        icon: '❌',
+                        name: response.message,
+                        message: response.data?.suggestion || '请重试'
+                    });
+                    showToast(response.message, 'error');
+                }
+            } catch (error) {
+                hideLoading();
+                showToast('签到失败: ' + error.message, 'error');
+            }
+        }
+
+        // 签退
+        async function handleCheckOut() {
+            if (!stream) {
+                showToast('摄像头未就绪', 'error');
+                return;
+            }
+
+            const image = captureImage();
+            showLoading('正在识别...');
+
+            try {
+                const response = await api.checkOut(image);
+                hideLoading();
+
+                if (response.success) {
+                    showResult({
+                        success: true,
+                        icon: '👋',
+                        name: response.data.name,
+                        time: formatTime(response.data.checkOutTime),
+                        status: response.data.status,
+                        statusClass: response.data.status === '正常' ? 'normal' : 'early',
+                        message: response.data.workHours ? 
+                            `工作时长: ${response.data.workHours}` : '签退成功'
+                    });
+                    showToast(`${response.data.name} 签退成功！`, 'success');
+                    loadTodayRecords();
+                } else {
+                    showResult({
+                        success: false,
+                        icon: '❌',
+                        name: response.message,
+                        message: response.data?.suggestion || '请重试'
+                    });
+                    showToast(response.message, 'error');
+                }
+            } catch (error) {
+                hideLoading();
+                showToast('签退失败: ' + error.message, 'error');
+            }
+        }
+
+        // 显示识别结果
+        function showResult(data) {
+            const display = document.getElementById('resultDisplay');
+            display.className = `result-display ${data.success ? 'success' : 'error'}`;
+            
+            let html = `
+                <div class="result-icon">${data.icon}</div>
+                <div class="result-name">${data.name}</div>
+            `;
+
+            if (data.department) {
+                html += `<div class="result-info">${data.department}</div>`;
+            }
+
+            if (data.time) {
+                html += `<div class="result-time">${data.time}</div>`;
+            }
+
+            if (data.status) {
+                html += `<div class="result-status ${data.statusClass}">${data.status}</div>`;
+            }
+
+            if (data.message) {
+                html += `<div class="result-info" style="margin-top: 10px;">${data.message}</div>`;
+            }
+
+            display.innerHTML = html;
+        }
+
+        // 加载今日记录
+        async function loadTodayRecords() {
+            try {
+                const response = await api.getTodayRecords();
+                
+                if (response.success) {
+                    renderTodayRecords(response.data);
+                    updateStats(response.data);
+                }
+            } catch (error) {
+                console.error('加载记录失败:', error);
+            }
+        }
+
+        // 渲染今日记录
+        function renderTodayRecords(data) {
+            const container = document.getElementById('recordsList');
+            const records = data.records || [];
+
+            if (records.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-records">
+                        <div class="icon">📭</div>
+                        <div>暂无签到记录</div>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = records.map(record => {
+                // 构建状态标签
+                let statusTags = '';
+                if (record.checkInStatus && record.checkInStatus !== '正常') {
+                    statusTags += `<span class="status-tag late">${record.checkInStatus}</span>`;
+                }
+                if (record.checkOutStatus && record.checkOutStatus !== '正常') {
+                    statusTags += `<span class="status-tag early">${record.checkOutStatus}</span>`;
+                }
+                
+                return `
+                <div class="record-item">
+                    <div class="record-avatar">${record.name.charAt(0)}</div>
+                    <div class="record-info">
+                        <div class="record-name">${record.name} ${statusTags}</div>
+                        <div class="record-dept">${record.department || '未设置部门'}</div>
+                    </div>
+                    <div class="record-time">
+                        <div class="time">${record.checkInTime || '--:--'}</div>
+                        <div class="action ${record.checkOutTime ? 'checkout' : ''}">
+                            ${record.checkOutTime ? '已签退 ' + record.checkOutTime : '已签到'}
+                        </div>
+                    </div>
+                </div>
+            `}).join('');
+        }
+
+        // 更新统计
+        function updateStats(data) {
+            document.getElementById('statCheckedIn').textContent = `已签到: ${data.checkedIn || 0}`;
+            document.getElementById('statCheckedOut').textContent = `已签退: ${data.checkedOut || 0}`;
+        }
+
+        // 格式化时间
+        function formatTime(timeStr) {
+            if (!timeStr) return '--:--:--';
+            // 如果是纯时间格式 HH:MM:SS，直接返回
+            if (/^\d{2}:\d{2}:\d{2}$/.test(timeStr)) {
+                return timeStr;
+            }
+            // 否则尝试解析为日期
+            const date = new Date(timeStr);
+            if (isNaN(date.getTime())) return timeStr;
+            return date.toTimeString().split(' ')[0];
+        }
+
+        // 显示加载
+        function showLoading(text = '加载中...') {
+            document.getElementById('loadingText').textContent = text;
+            document.getElementById('loading').classList.add('show');
+        }
+
+        // 隐藏加载
+        function hideLoading() {
+            document.getElementById('loading').classList.remove('show');
+        }
+
+        // Toast 提示
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = `toast ${type} show`;
+            
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3000);
+        }
+    </script>
+</body>
+</html>
